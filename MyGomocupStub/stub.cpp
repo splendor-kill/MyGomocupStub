@@ -1,13 +1,64 @@
+#include <fstream>
+#include <string>
+#include <regex>
+#include <map>
+#include <thread>
+
+#include <boost/asio.hpp>
+#include <boost/algorithm/string.hpp>
+#include <boost/filesystem/operations.hpp>
+#include <boost/filesystem/path.hpp>
+
+#include <Windows.h>
+
 #include "pisqpipe.h"
+#include "forwarder.h"
+
+using namespace std;
+using std::string;
+
+namespace fs = boost::filesystem;
+namespace asio = boost::asio;
+using asio::ip::tcp;
 
 const char *infotext = "name=\"Stub\", author=\"Splendor\", version=\"0.1\", country=\"China\", email=\"splendor.kill@gmail.com\"";
 
 #define MAX_BOARD 100
-int board[MAX_BOARD][MAX_BOARD];
-static unsigned seed;
+
+map<string, string> options;
+void read_config(map<string, string>&, const string&);
+
+Forwarder *the_client;
 
 void brain_init()
 {
+	try {
+		if (options.empty()) {
+			TCHAR buf[MAX_PATH];
+			GetModuleFileName(NULL, buf, MAX_PATH);
+			fs::path full_path = fs::system_complete(fs::path(buf));
+			auto pp = full_path.parent_path();
+			auto file = fs::path("config.txt");
+			auto cfg = pp / file;
+			if (!fs::exists(cfg))
+				cfg = pp / fs::path("..") / file;
+			read_config(options, cfg.string());
+		}
+	}
+	catch (std::exception&) {
+		pipeOut("ERROR config file problems.");
+		return;
+	}
+
+	try {
+		the_client = new Forwarder(options["server_ip"], options["server_port"]);
+		the_client->do_connect();
+	}
+	catch (std::exception&) {
+		pipeOut("ERROR check network things.");
+		return;
+	}
+
 	if (width < 5 || height < 5) {
 		pipeOut("ERROR size of the board");
 		return;
@@ -17,59 +68,72 @@ void brain_init()
 		return;
 	}
 
-	pipeOut("OK");
+	brain_restart();
 }
 
 void brain_restart()
 {
-	//int x, y;
-	//for (x = 0; x < width; x++) {
-	//	for (y = 0; y < height; y++) {
-	//		board[x][y] = 0;
-	//	}
-	//}
+	string msg = "START: " + to_string(width);
+	try {
+		the_client->send_a_msg(msg);
+		the_client->wait_answer();
+		if (!the_client->start_ok) {
+			pipeOut("ERROR start failed.");
+			return;
+		}
+	}
+	catch (std::exception&) {
+		pipeOut("ERROR start failed.");
+		return;
+	}
 	pipeOut("OK");
 }
 
-int isFree(int x, int y)
-{
-	return x >= 0 && y >= 0 && x < width && y < height && board[x][y] == 0;
-}
 
 void brain_my(int x, int y)
 {
-	if (isFree(x, y)) {
-		board[x][y] = 1;
+	string msg = "MOVE: " + to_string(x) + " " + to_string(y) + " 1";
+
+	try {
+		the_client->send_a_msg(msg);
 	}
-	else {
+	catch (std::exception&) {
 		pipeOut("ERROR my move [%d,%d]", x, y);
 	}
 }
 
 void brain_opponents(int x, int y)
 {
-	if (isFree(x, y)) {
-		board[x][y] = 2;
+	string msg = "MOVE: " + to_string(x) + " " + to_string(y) + " 2";
+	try {
+		the_client->send_a_msg(msg);
 	}
-	else {
+	catch (std::exception&) {
 		pipeOut("ERROR opponents's move [%d,%d]", x, y);
 	}
 }
 
 void brain_block(int x, int y)
 {
-	if (isFree(x, y)) {
-		board[x][y] = 3;
+	string msg = "WIN: " + to_string(x) + " " + to_string(y);
+	try {
+		the_client->send_a_msg(msg);
 	}
-	else {
+	catch (std::exception&) {
 		pipeOut("ERROR winning move [%d,%d]", x, y);
 	}
 }
 
 int brain_takeback(int x, int y)
 {
-	if (x >= 0 && y >= 0 && x < width && y < height && board[x][y] != 0) {
-		board[x][y] = 0;
+	string msg = "UNDO: " + to_string(x) + " " + to_string(y);
+	try {
+		the_client->send_a_msg(msg);
+		the_client->wait_answer();
+		if (!the_client->undo_ok)
+			return 0;
+	}
+	catch (std::exception&) {
 		return 0;
 	}
 	return 2;
@@ -77,38 +141,41 @@ int brain_takeback(int x, int y)
 
 void brain_turn()
 {
-	int x, y, i;
-
-	i = -1;
-	do {
-		x = 0;
-		y = 0;
-		i++;
-		if (terminateAI) return;
-	} while (!isFree(x, y));
-
-	if (i > 1) pipeOut("DEBUG %d coordinates didn't hit an empty field", i);
-	do_mymove(x, y);
+	string msg("WHERE: 1");
+	try {
+		the_client->send_a_msg(msg);
+		the_client->wait_answer();
+	}
+	catch (std::exception&) {
+		pipeOut("ERROR i have no idea");
+	}
+	do_mymove(the_client->x, the_client->y);
 }
 
 void brain_end()
 {
+	string msg = "END: " + to_string(the_client->token_);
+	the_client->send_a_msg(msg);
 }
 
-#ifdef DEBUG_EVAL
-
-void brain_eval(int x, int y)
+void read_config(map<string, string>& options, const string& file_name)
 {
-	HDC dc;
-	HWND wnd;
-	RECT rc;
-	char c;
-	wnd = GetForegroundWindow();
-	dc = GetDC(wnd);
-	GetClientRect(wnd, &rc);
-	c = (char)(board[x][y] + '0');
-	TextOut(dc, rc.right - 15, 3, &c, 1);
-	ReleaseDC(wnd, dc);
+	ifstream myfile(file_name);
+	if (myfile.is_open()) {
+		string line;
+		while (getline(myfile, line)) {
+			std::regex base_regex("(\\S+)\\s*=\\s*(.*)", std::regex_constants::ECMAScript);
+			std::smatch base_match;
+			if (std::regex_match(line, base_match, base_regex)) {
+				string key = base_match[1].str();
+				string value = base_match[2].str();
+				boost::trim_right(value);
+				options[key] = value;
+			}
+		}
+		myfile.close();
+	}
+	else {
+		throw std::runtime_error("what's matter with the config files?");
+	}
 }
-
-#endif
