@@ -7,6 +7,8 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "MyGomocupStub", "MyGomocupS
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Confirm", "Confirm\Confirm.vcxproj", "{10F8473B-A714-47A6-991B-AE00CCCC92A6}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "MCTSPlayer", "MCTSPlayer\MCTSPlayer.vcxproj", "{DD8A94B3-C2B5-4CE7-9633-A663E5468AD6}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64
@@ -31,6 +33,14 @@ Global
 		{10F8473B-A714-47A6-991B-AE00CCCC92A6}.Release|x64.Build.0 = Release|x64
 		{10F8473B-A714-47A6-991B-AE00CCCC92A6}.Release|x86.ActiveCfg = Release|Win32
 		{10F8473B-A714-47A6-991B-AE00CCCC92A6}.Release|x86.Build.0 = Release|Win32
+		{DD8A94B3-C2B5-4CE7-9633-A663E5468AD6}.Debug|x64.ActiveCfg = Debug|x64
+		{DD8A94B3-C2B5-4CE7-9633-A663E5468AD6}.Debug|x64.Build.0 = Debug|x64
+		{DD8A94B3-C2B5-4CE7-9633-A663E5468AD6}.Debug|x86.ActiveCfg = Debug|Win32
+		{DD8A94B3-C2B5-4CE7-9633-A663E5468AD6}.Debug|x86.Build.0 = Debug|Win32
+		{DD8A94B3-C2B5-4CE7-9633-A663E5468AD6}.Release|x64.ActiveCfg = Release|x64
+		{DD8A94B3-C2B5-4CE7-9633-A663E5468AD6}.Release|x64.Build.0 = Release|x64
+		{DD8A94B3-C2B5-4CE7-9633-A663E5468AD6}.Release|x86.ActiveCfg = Release|Win32
+		{DD8A94B3-C2B5-4CE7-9633-A663E5468AD6}.Release|x86.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
